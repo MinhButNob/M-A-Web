@@ -1,0 +1,273 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and role",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["buyer", "seller", "advisor", "admin"] },
+        "isVerified": { "type": "boolean" },
+        "isBanned": { "type": "boolean" },
+        "banReason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role", "isVerified"]
+    },
+    "Deal": {
+      "title": "M&A Deal",
+      "description": "A business deal listed on the marketplace with full financial and strategic data",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "industry": { "type": "string" },
+        "location": { "type": "string" },
+        "financials": {
+          "type": "object",
+          "properties": {
+            "revenue": { "type": "array" },
+            "ebitda": { "type": "array" },
+            "netProfit": { "type": "array" },
+            "growthRate": { "type": "string" }
+          }
+        },
+        "dealDetails": {
+          "type": "object",
+          "properties": {
+            "dealType": { "type": "string", "enum": ["Bán 100%", "Bán cổ phần", "Gọi vốn"] },
+            "valuation": { "type": "string" },
+            "equityOffered": { "type": "number" }
+          }
+        },
+        "strategicObjectives": {
+          "type": "object",
+          "properties": {
+            "reasonForSelling": { "type": "string" },
+            "futurePlans": { "type": "string" }
+          }
+        },
+        "documents": {
+          "type": "object",
+          "properties": {
+            "pitchDeck": { "type": "string" },
+            "financialReport": { "type": "string" },
+            "legalDocs": { "type": "string" }
+          }
+        },
+        "status": { "type": "string", "enum": ["draft", "submitted", "under-review", "approved", "published", "in-negotiation", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "ownerId", "industry", "status"]
+    },
+    "KYCRequest": {
+      "title": "KYC Verification Request",
+      "description": "User request for identity verification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userType": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "userType", "status"]
+    },
+    "Inquiry": {
+      "title": "Deal Inquiry",
+      "description": "A message from a buyer expressing interest in a deal",
+      "type": "object",
+      "properties": {
+        "dealId": { "type": "string" },
+        "dealTitle": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "replied", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dealId", "buyerId", "sellerId", "message", "status"]
+    },
+    "Company": {
+      "title": "Company Profile",
+      "description": "Detailed legal and operational information about a business",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "legalName": { "type": "string" },
+        "taxId": { "type": "string" },
+        "registrationCountry": { "type": "string" },
+        "incorporationYear": { "type": "number" },
+        "industry": { "type": "string" },
+        "products": { "type": "string" },
+        "targetMarkets": { "type": "string" },
+        "founderPct": { "type": "number" },
+        "investorPct": { "type": "number" },
+        "esopPct": { "type": "number" },
+        "isVisible": { "type": "boolean" },
+        "version": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "legalName", "taxId", "industry", "version"]
+    },
+    "Negotiation": {
+      "title": "Deal Negotiation",
+      "description": "An active negotiation process between a buyer and a seller",
+      "type": "object",
+      "properties": {
+        "dealId": { "type": "string" },
+        "dealTitle": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "accepted", "closed", "legal-process"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dealId", "buyerId", "sellerId", "status"]
+    },
+    "Message": {
+      "title": "Negotiation Message",
+      "description": "A message or event notification in a negotiation thread",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "system", "offer", "file"] },
+        "attachmentUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "type", "createdAt"]
+    },
+    "Offer": {
+      "title": "M&A Offer",
+      "description": "A structured financial offer for a deal",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "amount": { "type": "string" },
+        "equityPercent": { "type": "number" },
+        "terms": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "countered", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "amount", "equityPercent", "status", "createdAt"]
+    },
+    "LegalDocument": {
+      "title": "Legal Workflow Document",
+      "description": "An automated legal document (NDA, LOI, SPA)",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["NDA", "LOI", "SPA"] },
+        "status": { "type": "string", "enum": ["draft", "reviewing", "pending-signature", "signed", "archived", "void"] },
+        "url": { "type": "string" },
+        "parties": { "type": "array" },
+        "signedBy": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "status", "parties", "createdAt"]
+    },
+    "DataRoomFile": {
+      "title": "VDR File",
+      "description": "A file stored in the Virtual Data Room for due diligence",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "folder": { "type": "string", "enum": ["Financial", "Legal", "HR", "Contracts", "Technology"] },
+        "url": { "type": "string" },
+        "type": { "type": "string" },
+        "size": { "type": "number" },
+        "uploadedBy": { "type": "string" },
+        "permissions": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "folder", "url", "uploadedBy", "createdAt"]
+    },
+    "DataRoomTracking": {
+      "title": "File Access Log",
+      "description": "Tracks who viewed which file and for how long",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fileId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "duration": { "type": "number" },
+        "accessedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "fileId", "accessedAt"]
+    },
+    "Meeting": {
+      "title": "Negotiation Meeting",
+      "description": "Scheduled meetings for the negotiation",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "duration": { "type": "number" },
+        "type": { "type": "string", "enum": ["Video Call", "Office Meeting"] },
+        "link": { "type": "string" },
+        "status": { "type": "string", "enum": ["scheduled", "ongoing", "completed", "cancelled"] },
+        "organiserId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "startTime", "status", "organiserId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Profiles of all stakeholders"
+    },
+    "/deals/{dealId}": {
+      "schema": "Deal",
+      "description": "Public and private deal listings"
+    },
+    "/kyc_requests/{requestId}": {
+      "schema": "KYCRequest",
+      "description": "Identity verification requests"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Messages between buyers and sellers"
+    },
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Detailed business profiles"
+    },
+    "/negotiations/{negId}": {
+      "schema": "Negotiation",
+      "description": "Active negotiation processes"
+    },
+    "/negotiations/{negId}/messages/{msgId}": {
+      "schema": "Message",
+      "description": "Chat messages within a negotiation"
+    },
+    "/negotiations/{negId}/offers/{offerId}": {
+      "schema": "Offer",
+      "description": "Financial offers within a negotiation"
+    },
+    "/negotiations/{negId}/documents/{docId}": {
+      "schema": "LegalDocument",
+      "description": "Legal documents for the deal"
+    },
+    "/negotiations/{negId}/dataroom/{fileId}": {
+      "schema": "DataRoomFile",
+      "description": "Files in the due diligence data room"
+    },
+    "/negotiations/{negId}/tracking/{logId}": {
+      "schema": "DataRoomTracking",
+      "description": "Access logs for data room files"
+    },
+    "/negotiations/{negId}/meetings/{meetingId}": {
+      "schema": "Meeting",
+      "description": "Meetings scheduled during the negotiation"
+    }
+  }
+}

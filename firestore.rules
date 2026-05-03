@@ -1,0 +1,225 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isNotBanned() {
+      return !isSignedIn() || 
+             !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBanned', false) == false;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isSeller() {
+      return isSignedIn() && isNotBanned() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'seller';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerifiedUser() {
+       return isSignedIn() && isNotBanned() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'tuanminhdang208@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin')
+      );
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['name', 'email', 'role', 'isVerified']) &&
+               data.name is string && data.name.size() <= 200 &&
+               data.email is string && data.email.size() <= 200 &&
+               data.role in ['buyer', 'seller', 'advisor', 'admin'] &&
+               data.isVerified is bool &&
+               (data.get('isBanned', false) is bool) &&
+               (data.get('banReason', '') is string && data.get('banReason', '').size() <= 1000);
+      }
+
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isSignedIn() && isValidUser(incoming()) && 
+                       (incoming().role != 'admin' || request.auth.token.email == 'tuanminhdang208@gmail.com') && 
+                       (incoming().isVerified == false || (incoming().isVerified == true && request.auth.token.email == 'tuanminhdang208@gmail.com'));
+      allow update: if (isOwner(userId) && isVerifiedUser() &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'role', 'updatedAt']) &&
+                       incoming().role in ['buyer', 'seller', 'advisor'] &&
+                       incoming().email == existing().email &&
+                       incoming().isVerified == existing().isVerified) || 
+                       (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'isVerified', 'isBanned', 'banReason', 'updatedAt']));
+    }
+
+    // --- Deals ---
+    match /deals/{dealId} {
+      function isValidDeal(data) {
+        return data.keys().hasAll(['title', 'ownerId', 'industry', 'status']) &&
+               data.title is string && data.title.size() <= 300 &&
+               data.ownerId is string && isValidId(data.ownerId) &&
+               data.industry is string && data.industry.size() <= 100 &&
+               data.status in ['draft', 'submitted', 'under-review', 'approved', 'published', 'in-negotiation', 'closed'] &&
+               (data.get('location', '') is string && data.get('location', '').size() <= 200) &&
+               (data.get('financials', null) == null || data.financials is map) &&
+               (data.get('dealDetails', null) == null || data.dealDetails is map) &&
+               (data.get('strategicObjectives', null) == null || data.strategicObjectives is map) &&
+               (data.get('documents', null) == null || data.documents is map);
+      }
+
+      allow list: if (resource.data.status == 'published' || resource.data.status == 'approved') || 
+                     (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()));
+      allow get: if (resource.data.status == 'published' || resource.data.status == 'approved') || 
+                    (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()));
+      
+      allow create: if isVerifiedUser() && isValidDeal(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if (isOwner(existing().ownerId) || isAdmin()) && 
+                       isVerifiedUser() && 
+                       isValidDeal(incoming()) && 
+                       incoming().ownerId == existing().ownerId &&
+                       (
+                         isAdmin() ||
+                         (
+                           existing().status != 'closed' &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'title', 'industry', 'location', 'financials', 
+                             'dealDetails', 'strategicObjectives', 'documents', 
+                             'status', 'updatedAt'
+                           ])
+                         )
+                       );
+      allow delete: if (isOwner(existing().ownerId) || isAdmin()) && existing().status != 'closed';
+    }
+
+    // --- KYC Requests ---
+    match /kyc_requests/{requestId} {
+      function isValidKYC(data) {
+        return data.keys().hasAll(['userId', 'userName', 'userType', 'status']) &&
+               data.userId == request.auth.uid &&
+               data.status == 'pending';
+      }
+
+      allow create: if isSignedIn() && isValidKYC(incoming());
+      allow list, get: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+
+    // --- Inquiries ---
+    match /inquiries/{inquiryId} {
+      allow create: if isVerifiedUser();
+      allow list, get: if isAdmin() || 
+                       (isSignedIn() && (resource.data.get('buyerId', '') == request.auth.uid || resource.data.get('sellerId', '') == request.auth.uid));
+      allow update: if isSignedIn() && (resource.data.get('buyerId', '') == request.auth.uid || resource.data.get('sellerId', '') == request.auth.uid || isAdmin());
+    }
+
+    // --- Companies ---
+    match /companies/{companyId} {
+      function isValidCompany(data) {
+        return data.get('ownerId', '') == request.auth.uid &&
+               data.get('legalName', '') is string &&
+               data.get('taxId', '') is string &&
+               data.get('industry', '') is string;
+      }
+
+      allow list, get: if isAdmin() || (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.isVisible == true));
+      allow create: if (isSeller() || isAdmin()) && isValidCompany(incoming()) && 
+                       incoming().createdAt == request.time && 
+                       incoming().updatedAt == request.time;
+      allow update: if (isOwner(existing().ownerId) || isAdmin()) && 
+                       isValidCompany(incoming()) &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().updatedAt == request.time;
+      allow delete: if (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    // --- Negotiations ---
+    match /negotiations/{negId} {
+      function isInvolved() {
+        return isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
+      }
+
+      allow list: if isSignedIn() && (
+        resource.data.buyerId == request.auth.uid || 
+        resource.data.sellerId == request.auth.uid || 
+        isAdmin()
+      );
+      allow get: if isInvolved();
+      allow create: if isSignedIn() && (
+        (request.resource.data.buyerId == request.auth.uid) || 
+        (request.resource.data.sellerId == request.auth.uid) || 
+        isAdmin()
+      );
+      allow update: if isInvolved();
+
+      // --- Sub-collections ---
+      function isNegParticipant(nId) {
+        let neg = get(/databases/$(database)/documents/negotiations/$(nId)).data;
+        return isSignedIn() && (neg.buyerId == request.auth.uid || neg.sellerId == request.auth.uid || isAdmin());
+      }
+
+      match /messages/{msgId} {
+        allow list, get: if isNegParticipant(negId);
+        allow create: if isNegParticipant(negId) && 
+                         request.resource.data.keys().hasAll(['senderId', 'createdAt']) &&
+                         (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == 'system');
+      }
+
+      match /offers/{offerId} {
+        allow list, get: if isNegParticipant(negId);
+        allow create: if isNegParticipant(negId) && 
+                         request.resource.data.keys().hasAll(['senderId', 'amount', 'equityPercent', 'status', 'createdAt']) &&
+                         request.resource.data.senderId == request.auth.uid;
+        allow update: if isNegParticipant(negId) && 
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      }
+
+      match /documents/{docId} {
+        allow list, get: if isNegParticipant(negId);
+        allow create, update: if isNegParticipant(negId);
+      }
+
+      match /dataroom/{fileId} {
+        allow list, get: if isNegParticipant(negId);
+        allow create, update: if isNegParticipant(negId) && 
+                                 (get(/databases/$(database)/documents/negotiations/$(negId)).data.sellerId == request.auth.uid || isAdmin());
+        allow delete: if isNegParticipant(negId) && 
+                          (get(/databases/$(database)/documents/negotiations/$(negId)).data.sellerId == request.auth.uid || isAdmin());
+      }
+
+      match /tracking/{logId} {
+        allow list, get: if isAdmin() || (isNegParticipant(negId) && get(/databases/$(database)/documents/negotiations/$(negId)).data.sellerId == request.auth.uid);
+        allow create: if isNegParticipant(negId) && request.resource.data.userId == request.auth.uid;
+      }
+
+      match /meetings/{meetingId} {
+        allow list, get: if isNegParticipant(negId);
+        allow create, update: if isNegParticipant(negId);
+        allow delete: if isNegParticipant(negId) && (existing().organiserId == request.auth.uid || isAdmin());
+      }
+    }
+  }
+}
